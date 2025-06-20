@@ -29,9 +29,8 @@ module Regent
     def run(task, messages: nil, return_session: false)
       raise ArgumentError, "Task cannot be empty" if task.to_s.strip.empty?
 
-      if messages
+      if !messages.nil? && messages.any?
         # Continue from provided message history
-        raise ArgumentError, "Messages cannot be empty" if messages.empty?
         @sessions << Session.from_messages(messages)
         session.reactivate
         @continuing_session = true
