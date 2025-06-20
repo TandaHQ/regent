@@ -236,6 +236,7 @@ messages = session.messages_for_export
 ```ruby
 # Later, load messages from your storage and continue
 stored_messages = load_from_storage() # Your implementation
+# The library automatically handles extra fields and format conversion
 
 # Continue the conversation
 agent = WeatherAgent.new("You are a helpful weather assistant", model: "gpt-4o")
@@ -271,9 +272,8 @@ class ConversationsController < ApplicationController
   
   def load_messages(conversation_id)
     # Your storage implementation - could be ActiveRecord, Redis, etc.
-    Conversation.find(conversation_id).messages.map { |m| 
-      { role: m["role"], content: m["content"] }
-    }
+    # Can return messages directly - the library handles format conversion
+    Conversation.find(conversation_id).messages
   end
   
   def save_messages(conversation_id, messages)

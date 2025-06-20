@@ -34,10 +34,14 @@ module Regent
     # @raise [ArgumentError] if message format is invalid
     def self.validate_message_format(message)
       raise ArgumentError, "Message must be a Hash" unless message.is_a?(Hash)
-      raise ArgumentError, "Message must have :role key" unless message.key?(:role)
-      raise ArgumentError, "Message must have :content key" unless message.key?(:content)
-      raise ArgumentError, "Message role must be :user, :assistant, or :system" unless [:user, :assistant, :system].include?(message[:role].to_sym)
-      raise ArgumentError, "Message content cannot be empty" if message[:content].to_s.strip.empty?
+      raise ArgumentError, "Message must have :role key" unless message.key?(:role) || message.key?("role")
+      raise ArgumentError, "Message must have :content key" unless message.key?(:content) || message.key?("content")
+      
+      role = (message[:role] || message["role"]).to_sym
+      content = message[:content] || message["content"]
+      
+      raise ArgumentError, "Message role must be :user, :assistant, or :system" unless [:user, :assistant, :system].include?(role)
+      raise ArgumentError, "Message content cannot be empty" if content.to_s.strip.empty?
     end
 
     attr_reader :id, :spans, :messages, :start_time, :end_time
@@ -103,7 +107,9 @@ module Regent
       raise ArgumentError, "Message cannot be nil" if message.nil?
       self.class.validate_message_format(message)
 
-      @messages << message
+      role = (message[:role] || message["role"]).to_sym
+      content = message[:content] || message["content"]
+      @messages << { role: role, content: content }
     end
 
     # Adds a user message to the conversation

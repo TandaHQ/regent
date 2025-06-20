@@ -171,9 +171,9 @@ RSpec.describe "Conversational Features" do
       messages = session1.messages_for_export
       expect(messages.first[:role]).to be_a(String)
       
-      # Continue conversation - convert back to symbols for internal use
+      # Continue conversation - strip timestamps and convert roles to symbols
       allow(llm).to receive(:invoke).and_return(llm_result2)
-      answer2 = agent.continue(messages.map { |m| { role: m[:role], content: m[:content] } }, "Good! Now what's 3+3?")
+      answer2 = agent.continue(messages.map { |m| { role: m[:role].to_sym, content: m[:content] } }, "Good! Now what's 3+3?")
       
       expect(answer2).to include("6")
       expect(agent.session.messages.any? { |m| m[:content].include?("2+2") }).to be true
