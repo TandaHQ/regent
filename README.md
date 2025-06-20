@@ -311,7 +311,6 @@ class ConversationsController < ApplicationController
   
   def load_messages(conversation_id)
     # Your storage implementation - could be ActiveRecord, Redis, etc.
-    # Important: Only return role and content, not timestamp
     Conversation.find(conversation_id).messages.map { |m| 
       { role: m["role"].to_sym, content: m["content"] }
     }
