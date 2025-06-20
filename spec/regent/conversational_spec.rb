@@ -142,6 +142,29 @@ RSpec.describe "Conversational Features" do
         expect(agent.session.messages.last).to eq({ role: :assistant, content: "Answer: Yes, that's correct!" })
       end
       
+      it "allows continuing the same conversation with just a string" do
+        messages = [
+          { role: :system, content: "You are a helpful assistant" },
+          { role: :user, content: "What's 2+2?" },
+          { role: :assistant, content: "2+2 equals 4" }
+        ]
+        
+        llm_result2 = double("result", content: "Answer: Yes, that's correct!", input_tokens: 10, output_tokens: 20)
+        llm_result3 = double("result", content: "Answer: 3+3 equals 6", input_tokens: 10, output_tokens: 20)
+        allow(llm).to receive(:invoke).and_return(llm_result2, llm_result3)
+        
+        # First continue with messages
+        answer1 = agent.continue(messages, "Is that right?")
+        expect(answer1).to eq("Yes, that's correct!")
+        
+        # Second continue with just a string
+        answer2 = agent.continue("What's 3+3?")
+        expect(answer2).to eq("3+3 equals 6")
+        
+        # Check that messages accumulated properly
+        expect(agent.session.messages.any? { |m| m[:content] == "What's 3+3?" }).to be true
+      end
+      
       it "validates inputs" do
         expect {
           agent.continue([], "Question")
@@ -150,6 +173,10 @@ RSpec.describe "Conversational Features" do
         expect {
           agent.continue([{ role: :user, content: "Hi" }], "")
         }.to raise_error(ArgumentError, "New task cannot be empty")
+        
+        expect {
+          agent.continue("Question without prior context")
+        }.to raise_error(ArgumentError, "No active conversation to continue")
       end
     end
   end

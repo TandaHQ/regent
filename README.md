@@ -221,10 +221,33 @@ Regent supports stateless conversation continuation, allowing you to maintain co
 #### Basic Conversation Flow
 
 ```ruby
+class WeatherAgent < Regent::Agent
+  tool(:current_weather_tool, "Get current weather for a location")
+  tool(:historical_weather_tool, "Get the historical average weather for a location on a given date")
+
+  def current_weather_tool(location)
+    case location
+    when "London"
+      "Currently 72°F and sunny in #{location}"
+    when "New York"
+      "Currently 80°F and overcast in #{location}"
+    end
+  end
+
+  def historical_weather_tool(location, date)
+    case location
+    when "London"
+      "Usually it's 68°F and overcast in #{location} on #{date}"
+    when "New York"
+      "Usually it's 88°F and sunny in #{location} on #{date}"
+    end
+  end
+end
+
 # Start a new conversation
-agent = WeatherAgent.new("You are a helpful weather assistant", model: "gpt-4o")
+agent = WeatherAgent.new("You are a helpful weather assistant. It is #{Date.today}.", model: "gpt-4o")
 answer, session = agent.run("What's the weather in London?", return_session: true)
-# => "It's currently 15°C and rainy in London"
+# => "The current weather in London is 72°F and sunny."
 
 # Export messages for storage
 messages = session.messages_for_export
@@ -235,7 +258,6 @@ messages = session.messages_for_export
 
 ```ruby
 # Later, load messages from your storage and continue
-# Important: Only pass role and content, not timestamp or other fields
 stored_messages = load_from_storage() # Your implementation should return:
 # [
 #   { role: :system, content: "You are a helpful weather assistant" },
@@ -244,9 +266,21 @@ stored_messages = load_from_storage() # Your implementation should return:
 # ]
 
 # Continue the conversation
-agent = WeatherAgent.new("You are a helpful weather assistant", model: "gpt-4o")
-answer = agent.continue(stored_messages, "Is that colder than usual?")
-# => "Yes, 15°C is about 5 degrees colder than the average for this time of year"
+agent = WeatherAgent.new("You are a helpful weather assistant. It is #{Date.today}.", model: "gpt-4o")
+answer1 = agent.continue(stored_messages, "Is that colder than usual?")
+# => "Actually, it's warmer than usual! The current temperature in London is 72°F and sunny,
+#     while historically it's usually 68°F and overcast on June 20th. So it's 4 degrees 
+#     warmer and sunnier than typical."
+
+# Continue the same conversation without passing messages again
+answer2 = agent.continue("Thanks. What's the weather in New York? How does it compare to London?")
+# => "The current weather in New York is 80°F and overcast. Comparing the two cities:
+#
+#     - **Temperature**: New York is warmer at 80°F compared to London's 72°F (8 degrees warmer)
+#     - **Conditions**: New York is overcast while London is sunny today
+#
+#     So New York is experiencing warmer but cloudier weather compared to London's cooler but 
+#     sunnier conditions."
 ```
 
 #### Rails Integration Example
