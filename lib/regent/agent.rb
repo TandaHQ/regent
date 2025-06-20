@@ -43,9 +43,6 @@ module Regent
       @sessions << Session.from_messages(messages)
       session.reactivate
       
-      # Add the new user message
-      session.add_user_message(new_task)
-      
       # Run reasoning to get response
       reason(new_task)
     ensure

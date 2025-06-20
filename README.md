@@ -272,7 +272,7 @@ class ConversationsController < ApplicationController
   def load_messages(conversation_id)
     # Your storage implementation - could be ActiveRecord, Redis, etc.
     Conversation.find(conversation_id).messages.map { |m| 
-      { role: m["role"].to_sym, content: m["content"] }
+      { role: m["role"], content: m["content"] }
     }
   end
   

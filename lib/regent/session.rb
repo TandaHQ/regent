@@ -36,7 +36,7 @@ module Regent
       raise ArgumentError, "Message must be a Hash" unless message.is_a?(Hash)
       raise ArgumentError, "Message must have :role key" unless message.key?(:role)
       raise ArgumentError, "Message must have :content key" unless message.key?(:content)
-      raise ArgumentError, "Message role must be :user, :assistant, or :system" unless [:user, :assistant, :system].include?(message[:role])
+      raise ArgumentError, "Message role must be :user, :assistant, or :system" unless [:user, :assistant, :system].include?(message[:role].to_sym)
       raise ArgumentError, "Message content cannot be empty" if message[:content].to_s.strip.empty?
     end
 
