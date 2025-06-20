@@ -218,6 +218,11 @@ Outputs:
 
 Regent supports stateless conversation continuation, allowing you to maintain context across multiple interactions without built-in persistence. You manage message storage however you prefer (database, Redis, session storage, etc.).
 
+The `run` method handles both new conversations and continuations seamlessly:
+- `agent.run(task)` - Start a new conversation
+- `agent.run(task, messages: stored_messages)` - Continue from stored messages
+- `agent.run(task)` - Continue current conversation (after loading messages)
+
 #### Basic Conversation Flow
 
 ```ruby
@@ -267,13 +272,13 @@ stored_messages = load_from_storage() # Your implementation should return:
 
 # Continue the conversation
 agent = WeatherAgent.new("You are a helpful weather assistant. It is #{Date.today}.", model: "gpt-4o")
-answer1 = agent.continue(stored_messages, "Is that colder than usual?")
+answer1 = agent.run("Is that colder than usual?", messages: stored_messages)
 # => "Actually, it's warmer than usual! The current temperature in London is 72°F and sunny,
 #     while historically it's usually 68°F and overcast on June 20th. So it's 4 degrees 
 #     warmer and sunnier than typical."
 
 # Continue the same conversation without passing messages again
-answer2 = agent.continue("Thanks. What's the weather in New York? How does it compare to London?")
+answer2 = agent.run("Thanks. What's the weather in New York? How does it compare to London?")
 # => "The current weather in New York is 80°F and overcast. Comparing the two cities:
 #
 #     - **Temperature**: New York is warmer at 80°F compared to London's 72°F (8 degrees warmer)
@@ -294,14 +299,8 @@ class ConversationsController < ApplicationController
     # Create agent and process message
     agent = ChatAgent.new("You are a helpful assistant", model: "gpt-4o")
     
-    if messages.empty?
-      answer, session = agent.run(params[:message], return_session: true)
-    else
-      answer = agent.continue(messages, params[:message])
-      session = agent.session
-    end
+    answer, session = agent.run(params[:message], messages: messages, return_session: true)
     
-    # Save updated messages
     save_messages(conversation_params[:id], session.messages_for_export)
     
     render json: { answer: answer, conversation_id: conversation_params[:id] }

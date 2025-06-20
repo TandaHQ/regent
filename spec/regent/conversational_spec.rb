@@ -124,7 +124,7 @@ RSpec.describe "Conversational Features" do
       end
     end
     
-    describe "#continue" do
+    describe "#run with messages" do
       it "continues a conversation with existing messages" do
         messages = [
           { role: :system, content: "You are a helpful assistant" },
@@ -135,14 +135,14 @@ RSpec.describe "Conversational Features" do
         llm_result2 = double("result", content: "Answer: Yes, that's correct!", input_tokens: 10, output_tokens: 20)
         allow(llm).to receive(:invoke).and_return(llm_result2)
         
-        answer = agent.continue(messages, "Is that right?")
+        answer = agent.run("Is that right?", messages: messages)
         
         expect(answer).to eq("Yes, that's correct!")
         expect(agent.session.messages.count).to be >= 4 # Original 3 + new user message + any system prompts
         expect(agent.session.messages.last).to eq({ role: :assistant, content: "Answer: Yes, that's correct!" })
       end
       
-      it "allows continuing the same conversation with just a string" do
+      it "allows continuing the same conversation without re-passing messages" do
         messages = [
           { role: :system, content: "You are a helpful assistant" },
           { role: :user, content: "What's 2+2?" },
@@ -153,12 +153,12 @@ RSpec.describe "Conversational Features" do
         llm_result3 = double("result", content: "Answer: 3+3 equals 6", input_tokens: 10, output_tokens: 20)
         allow(llm).to receive(:invoke).and_return(llm_result2, llm_result3)
         
-        # First continue with messages
-        answer1 = agent.continue(messages, "Is that right?")
+        # First run with messages
+        answer1 = agent.run("Is that right?", messages: messages)
         expect(answer1).to eq("Yes, that's correct!")
         
-        # Second continue with just a string
-        answer2 = agent.continue("What's 3+3?")
+        # Second run continues the conversation
+        answer2 = agent.run("What's 3+3?")
         expect(answer2).to eq("3+3 equals 6")
         
         # Check that messages accumulated properly
@@ -167,16 +167,29 @@ RSpec.describe "Conversational Features" do
       
       it "validates inputs" do
         expect {
-          agent.continue([], "Question")
+          agent.run("Question", messages: [])
         }.to raise_error(ArgumentError, "Messages cannot be empty")
         
         expect {
-          agent.continue([{ role: :user, content: "Hi" }], "")
-        }.to raise_error(ArgumentError, "New task cannot be empty")
+          agent.run("", messages: [{ role: :user, content: "Hi" }])
+        }.to raise_error(ArgumentError, "Task cannot be empty")
+      end
+    end
+    
+    describe "#continue (legacy method)" do
+      it "delegates to run with messages" do
+        messages = [{ role: :user, content: "Hi" }]
+        expect(agent).to receive(:run).with("Hello", messages: messages)
+        agent.continue(messages, "Hello")
+      end
+      
+      it "delegates to run for string continuation" do
+        # Set up an active conversation first
+        agent.instance_variable_set(:@continuing_session, true)
+        agent.instance_variable_set(:@sessions, [double("session", completed?: false)])
         
-        expect {
-          agent.continue("Question without prior context")
-        }.to raise_error(ArgumentError, "No active conversation to continue")
+        expect(agent).to receive(:run).with("Hello")
+        agent.continue("Hello")
       end
     end
   end
@@ -200,7 +213,7 @@ RSpec.describe "Conversational Features" do
       
       # Continue conversation - strip timestamps and convert roles to symbols
       allow(llm).to receive(:invoke).and_return(llm_result2)
-      answer2 = agent.continue(messages.map { |m| { role: m[:role].to_sym, content: m[:content] } }, "Good! Now what's 3+3?")
+      answer2 = agent.run("Good! Now what's 3+3?", messages: messages.map { |m| { role: m[:role].to_sym, content: m[:content] } })
       
       expect(answer2).to include("6")
       expect(agent.session.messages.any? { |m| m[:content].include?("2+2") }).to be true

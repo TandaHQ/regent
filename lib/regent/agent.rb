@@ -21,45 +21,42 @@ module Regent
 
     attr_reader :context, :sessions, :model, :tools, :inline_tools
 
-    def run(task, return_session: false)
+    # Runs an agent task or continues a conversation
+    # @param task [String] The task or message to process
+    # @param messages [Array<Hash>, nil] Optional message history to continue from
+    # @param return_session [Boolean] Whether to return both result and session
+    # @return [String, Array<String, Session>] The result or [result, session] if return_session is true
+    def run(task, messages: nil, return_session: false)
       raise ArgumentError, "Task cannot be empty" if task.to_s.strip.empty?
 
-      start_session
-      result = reason(task)
-      
-      return_session ? [result, session] : result
-    ensure
-      complete_session
-    end
-
-    # Continues a conversation with existing messages or adds to current conversation
-    # @param messages_or_task [Array<Hash>, String] Either message history or new task
-    # @param new_task [String, nil] New task if first param is messages
-    # @return [String] The assistant's response
-    def continue(messages_or_task, new_task = nil)
-      # If first argument is a string, we're continuing the current session
-      if messages_or_task.is_a?(String)
-        raise ArgumentError, "No active conversation to continue" unless @continuing_session
-        raise ArgumentError, "Task cannot be empty" if messages_or_task.to_s.strip.empty?
-        
-        # Reactivate the session if it was completed
-        session.reactivate if session.completed?
-        
-        # Run reasoning with the new task
-        reason(messages_or_task)
-      else
-        # Otherwise, we're starting a new conversation from messages
-        messages = messages_or_task
-        raise ArgumentError, "Messages cannot be empty" if messages.nil? || messages.empty?
-        raise ArgumentError, "New task cannot be empty" if new_task.to_s.strip.empty?
-
-        # Create session from messages
+      if messages
+        # Continue from provided message history
+        raise ArgumentError, "Messages cannot be empty" if messages.empty?
         @sessions << Session.from_messages(messages)
         session.reactivate
         @continuing_session = true
-        
-        # Run reasoning to get response
-        reason(new_task)
+      elsif @continuing_session
+        # Continue current conversation
+        raise ArgumentError, "No active conversation to continue" unless session
+        session.reactivate if session.completed?
+      else
+        # Start new session
+        start_session
+      end
+
+      result = reason(task)
+      return_session ? [result, session] : result
+    ensure
+      complete_session unless @continuing_session
+    end
+
+    # Legacy method for backward compatibility
+    # @deprecated Use {#run} with messages parameter instead
+    def continue(messages_or_task, new_task = nil)
+      if messages_or_task.is_a?(String)
+        run(messages_or_task)
+      else
+        run(new_task, messages: messages_or_task)
       end
     end
 
@@ -81,7 +78,7 @@ module Regent
       complete_session
       @sessions << Session.new
       session.start
-      @continuing_session = false  # Reset continuation flag
+      @continuing_session = false
     end
 
     def complete_session
