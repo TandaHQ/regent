@@ -18,6 +18,28 @@ module Regent
       @end_time = nil
     end
 
+    # Creates a new session from existing messages
+    # @param messages [Array<Hash>] Array of message hashes with :role and :content keys
+    # @return [Session] A new session with the provided message history
+    def self.from_messages(messages)
+      session = new
+      messages.each do |msg|
+        session.add_message(msg)
+      end
+      session
+    end
+
+    # Validates message format
+    # @param message [Hash] The message to validate
+    # @raise [ArgumentError] if message format is invalid
+    def self.validate_message_format(message)
+      raise ArgumentError, "Message must be a Hash" unless message.is_a?(Hash)
+      raise ArgumentError, "Message must have :role key" unless message.key?(:role)
+      raise ArgumentError, "Message must have :content key" unless message.key?(:content)
+      raise ArgumentError, "Message role must be :user, :assistant, or :system" unless [:user, :assistant, :system].include?(message[:role])
+      raise ArgumentError, "Message content cannot be empty" if message[:content].to_s.strip.empty?
+    end
+
     attr_reader :id, :spans, :messages, :start_time, :end_time
 
     # Starts the session
@@ -75,12 +97,76 @@ module Regent
     end
 
     # Adds a message to the session
-    # @param message [String] The message to add
-    # @raise [ArgumentError] if message is nil or empty
+    # @param message [Hash] The message to add with :role and :content keys
+    # @raise [ArgumentError] if message is nil or invalid format
     def add_message(message)
-      raise ArgumentError, "Message cannot be nil or empty" if message.nil? || message.empty?
+      raise ArgumentError, "Message cannot be nil" if message.nil?
+      self.class.validate_message_format(message)
 
       @messages << message
+    end
+
+    # Adds a user message to the conversation
+    # @param content [String] The message content
+    # @return [void]
+    def add_user_message(content)
+      add_message({ role: :user, content: content })
+    end
+
+    # Adds an assistant message to the conversation
+    # @param content [String] The message content
+    # @return [void]
+    def add_assistant_message(content)
+      add_message({ role: :assistant, content: content })
+    end
+
+    # Checks if the session has been completed
+    # @return [Boolean] true if session has ended
+    def completed?
+      !end_time.nil?
+    end
+
+    # Retrieves the last assistant answer from messages or spans
+    # @return [String, nil] The last assistant response or nil if none found
+    def last_answer
+      # First check messages for assistant responses
+      last_assistant_msg = messages.reverse.find { |msg| msg[:role] == :assistant }
+      return last_assistant_msg[:content] if last_assistant_msg
+
+      # Fallback to spans with answer type
+      answer_span = spans.reverse.find { |span| span.type == Span::Type::ANSWER }
+      answer_span&.output
+    end
+
+    # Exports messages in a format suitable for storage
+    # @return [Array<Hash>] Array of message hashes with role, content, and timestamp
+    def messages_for_export
+      messages.map.with_index do |msg, index|
+        # Calculate approximate timestamp based on session timing and message position
+        timestamp = if start_time
+                      if messages.length > 1
+                        duration = (end_time || Time.now) - start_time
+                        start_time + (duration * index.to_f / (messages.length - 1))
+                      else
+                        start_time
+                      end
+                    else
+                      Time.now
+                    end
+
+        {
+          role: msg[:role].to_s,
+          content: msg[:content],
+          timestamp: timestamp.iso8601
+        }
+      end
+    end
+
+    # Reactivates a completed session for continuation
+    # @return [void]
+    def reactivate
+      @end_time = nil
+      @start_time ||= Time.now.freeze
     end
   end
 end

@@ -214,6 +214,96 @@ Outputs:
 [✔] [ANSWER ❯ success][0.03s]: It is 70 degrees and sunny in San Francisco.
 ```
 
+### Conversations
+
+Regent supports stateless conversation continuation, allowing you to maintain context across multiple interactions without built-in persistence. You manage message storage however you prefer (database, Redis, session storage, etc.).
+
+#### Basic Conversation Flow
+
+```ruby
+# Start a new conversation
+agent = WeatherAgent.new("You are a helpful weather assistant", model: "gpt-4o")
+answer, session = agent.run("What's the weather in London?", return_session: true)
+# => "It's currently 15°C and rainy in London"
+
+# Export messages for storage
+messages = session.messages_for_export
+# Store messages in your preferred storage (database, Redis, etc.)
+```
+
+#### Continuing a Conversation
+
+```ruby
+# Later, load messages from your storage and continue
+stored_messages = load_from_storage() # Your implementation
+
+# Continue the conversation
+agent = WeatherAgent.new("You are a helpful weather assistant", model: "gpt-4o")
+answer = agent.continue(stored_messages, "Is that colder than usual?")
+# => "Yes, 15°C is about 5 degrees colder than the average for this time of year"
+```
+
+#### Rails Integration Example
+
+```ruby
+class ConversationsController < ApplicationController
+  def create
+    # Load existing messages if conversation exists
+    messages = conversation_params[:id] ? load_messages(conversation_params[:id]) : []
+    
+    # Create agent and process message
+    agent = ChatAgent.new("You are a helpful assistant", model: "gpt-4o")
+    
+    if messages.empty?
+      answer, session = agent.run(params[:message], return_session: true)
+    else
+      answer = agent.continue(messages, params[:message])
+      session = agent.session
+    end
+    
+    # Save updated messages
+    save_messages(conversation_params[:id], session.messages_for_export)
+    
+    render json: { answer: answer, conversation_id: conversation_params[:id] }
+  end
+  
+  private
+  
+  def load_messages(conversation_id)
+    # Your storage implementation - could be ActiveRecord, Redis, etc.
+    Conversation.find(conversation_id).messages.map { |m| 
+      { role: m["role"].to_sym, content: m["content"] }
+    }
+  end
+  
+  def save_messages(conversation_id, messages)
+    Conversation.find(conversation_id).update(messages: messages)
+  end
+end
+```
+
+#### Message Format
+
+Messages follow a simple format with role and content:
+
+```ruby
+messages = [
+  { role: :system, content: "You are a helpful assistant" },
+  { role: :user, content: "Hello!" },
+  { role: :assistant, content: "Hi! How can I help you today?" }
+]
+```
+
+The `messages_for_export` method returns messages with timestamps for storage:
+
+```ruby
+exported = session.messages_for_export
+# => [
+#   { role: "user", content: "Hello!", timestamp: "2024-01-15T10:30:00Z" },
+#   { role: "assistant", content: "Hi! How can I help you today?", timestamp: "2024-01-15T10:30:05Z" }
+# ]
+```
+
 ### Engine
 By default, Regent uses ReAct agent architecture. You can see the [details of its implementation](https://github.com/alchaplinsky/regent/blob/main/lib/regent/engine/react.rb). However, Agent constructor accepts an `engine` option that allows you to swap agent engine when instantiating an Agent. This way you can implement your own agent architecture that can be plugged in and user within Regent framework.
 

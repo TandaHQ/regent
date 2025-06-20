@@ -20,11 +20,34 @@ module Regent
 
     attr_reader :context, :sessions, :model, :tools, :inline_tools
 
-    def run(task)
+    def run(task, return_session: false)
       raise ArgumentError, "Task cannot be empty" if task.to_s.strip.empty?
 
       start_session
-      reason(task)
+      result = reason(task)
+      
+      return_session ? [result, session] : result
+    ensure
+      complete_session
+    end
+
+    # Continues a conversation with existing messages
+    # @param messages [Array<Hash>] Array of message hashes from previous conversation
+    # @param new_task [String] The new user input to continue the conversation
+    # @return [String] The assistant's response
+    def continue(messages, new_task)
+      raise ArgumentError, "Messages cannot be empty" if messages.nil? || messages.empty?
+      raise ArgumentError, "New task cannot be empty" if new_task.to_s.strip.empty?
+
+      # Create session from messages
+      @sessions << Session.from_messages(messages)
+      session.reactivate
+      
+      # Add the new user message
+      session.add_user_message(new_task)
+      
+      # Run reasoning to get response
+      reason(new_task)
     ensure
       complete_session
     end

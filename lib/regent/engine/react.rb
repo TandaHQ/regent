@@ -12,8 +12,16 @@ module Regent
 
       def reason(task)
         session.exec(Span::Type::INPUT, top_level: true, message: task) { task }
-        session.add_message({role: :system, content: Regent::Engine::React::PromptTemplate.system_prompt(context, toolchain.to_s)})
-        session.add_message({role: :user, content: task})
+        
+        # Only add system prompt if this is a new conversation
+        if session.messages.empty? || session.messages.none? { |msg| msg[:role] == :system }
+          session.add_message({role: :system, content: Regent::Engine::React::PromptTemplate.system_prompt(context, toolchain.to_s)})
+        end
+        
+        # Only add user message if it's not already the last message (from continue method)
+        unless session.messages.last && session.messages.last[:role] == :user && session.messages.last[:content] == task
+          session.add_message({role: :user, content: task})
+        end
 
         with_max_iterations do
           content = llm_call_response(stop: [SEQUENCES[:stop]])
